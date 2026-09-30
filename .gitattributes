@@ -2,5 +2,6 @@
 *.zpln filter=nbstripout
 *.ipynb diff=ipynb
 
-# 프리퀴지트 primer는 그림/출력을 커밋에 남긴다 (stripout 제외, diff는 유지).
+# walkthrough 노트북은 그림/출력을 커밋에 남긴다 (stripout 제외, diff는 유지).
 notebooks/01_bayesian_primer.ipynb !filter
+notebooks/02_pfn_paper_walkthrough.ipynb !filter
