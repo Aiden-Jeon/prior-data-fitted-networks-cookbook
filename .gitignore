@@ -1,0 +1,26 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+
+# Training artifacts (체크포인트·로그는 커밋하지 않는다)
+checkpoints/
+runs/
+*.pt
+*.ckpt
+
+# OS
+.DS_Store
