@@ -22,5 +22,9 @@ runs/
 *.pt
 *.ckpt
 
+# Local tool state
+.isaac/
+.databricks/
+
 # OS
 .DS_Store

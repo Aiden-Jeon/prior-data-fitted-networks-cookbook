@@ -67,9 +67,34 @@ databricks auth login --profile e2-demo-field-eng   # 토큰이 만료됐을 때
 databricks current-user me --profile e2-demo-field-eng
 ```
 
-1. Workspace에서 이 저장소를 **Git folder**로 clone합니다.
-2. 노트북을 열고 오른쪽 **Environment** 패널에서 accelerator(A10 또는 H100)와 환경 버전을 고릅니다.
-   `pyproject.toml`의 의존성 하한은 Serverless GPU 환경 v6(Python 3.12, torch 2.11 + CUDA 13.0)에 맞춰져 있습니다.
+환경은 워크스페이스 base environment **AI v6**(`databricks_ai_v6`: Python 3.12, torch 2.11.0+cu130)를 씁니다.
+`pyproject.toml`의 torch 고정 범위와 의존성 하한도 이 환경에 맞춰져 있습니다.
+
+실행 방법은 두 가지입니다.
+
+### 1. Asset Bundle: 로컬 코드를 올려 job으로 실행
+
+실험·학습처럼 끝까지 돌려야 하는 작업에 씁니다. job 정의는 `databricks.yml`에 있습니다.
+
+```bash
+databricks bundle deploy                 # 로컬 코드를 워크스페이스에 업로드 + job 생성/갱신
+databricks bundle run setup_check        # 00 노트북을 A10 GPU에서 실행
+```
+
+Serverless notebook task에 GPU를 붙이려면 task에 `compute.hardware_accelerator`(`GPU_1xA10` 또는
+`GPU_8xH100`)와 `environment_key`를 함께 지정해야 합니다.
+
+### 2. Git folder: 워크스페이스에서 노트북을 직접 실행
+
+읽으면서 셀 단위로 실험할 때 씁니다. Git folder 경로는
+`/Workspace/Users/jongseob.jeon@databricks.com/prior-data-fitted-networks-cookbook`입니다.
+
+1. 로컬에서 push한 뒤 Git folder에서 **Pull**하거나 CLI로 갱신합니다.
+   ```bash
+   databricks repos update /Workspace/Users/jongseob.jeon@databricks.com/prior-data-fitted-networks-cookbook \
+     --branch main --profile e2-demo-field-eng
+   ```
+2. 노트북을 열고 오른쪽 **Environment** 패널에서 accelerator(A10 또는 H100)와 base environment **AI v6**를 고릅니다.
 3. `notebooks/00_setup_check.ipynb`을 실행해 `device: cuda`와 GPU 이름이 나오는지 확인합니다.
 
 각 노트북의 첫 셀은 `pfn_cookbook`이 설치되어 있지 않으면 저장소의 `src/`를 import 경로에 추가합니다.

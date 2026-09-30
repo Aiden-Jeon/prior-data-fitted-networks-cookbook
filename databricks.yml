@@ -1,0 +1,26 @@
+bundle:
+  name: pfn-cookbook
+
+resources:
+  jobs:
+    setup_check:
+      name: "[pfn-cookbook] 00 setup check"
+      environments:
+        - environment_key: gpu
+          spec:
+            # AI v6: Python 3.12, torch 2.11.0+cu130 (pyproject.toml의 torch 고정 범위와 같다)
+            base_environment: workspace-base-environments/databricks_ai_v6
+      tasks:
+        - task_key: setup_check
+          environment_key: gpu
+          notebook_task:
+            notebook_path: ./notebooks/00_setup_check.ipynb
+          compute:
+            hardware_accelerator: GPU_1xA10
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      profile: e2-demo-field-eng
