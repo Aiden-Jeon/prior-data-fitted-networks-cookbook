@@ -16,6 +16,7 @@ from pfn_cookbook.train import (
     build_model,
     build_prior_sampler,
     load_checkpoint,
+    load_logged_model,
     pfn_predict,
     save_checkpoint,
     train_pfn,
@@ -41,4 +42,5 @@ __all__ = [
     "pfn_predict",
     "save_checkpoint",
     "load_checkpoint",
+    "load_logged_model",
 ]

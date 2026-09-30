@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import copy
 import math
 from dataclasses import asdict, dataclass
 
@@ -132,6 +133,30 @@ def _lr_lambda(step: int, warmup: int, total: int) -> float:
     return 0.5 * (1.0 + math.cos(math.pi * progress))
 
 
+def _log_best_and_final_models(mlf, model, best_state, best_val, best_step, config) -> None:
+    """best/final 모델을 MLflow(mlflow.pytorch)로 로깅한다. config는 metadata로 동봉해
+
+    나중에 criterion을 재구성할 수 있게 한다."""
+    import mlflow.pytorch
+
+    meta = {"pfn_config": asdict(config)}
+    # pickle 포맷: 커스텀 attention-mask forward를 트레이싱(pt2)할 필요가 없어 안정적.
+    model.eval()
+    mlflow.pytorch.log_model(
+        model, name="final_model", metadata=meta, serialization_format="pickle"
+    )
+    if best_state is not None:
+        best_model = copy.deepcopy(model)
+        best_model.load_state_dict(best_state)
+        best_model.eval()
+        mlflow.pytorch.log_model(
+            best_model, name="best_model", metadata=meta, serialization_format="pickle"
+        )
+        mlf.log_metric("best_val_nll", best_val)
+        mlf.log_param("best_step", best_step)
+    model.train()
+
+
 def train_pfn(
     model: nn.Module,
     prior_sampler: GPPriorSampler,
@@ -143,12 +168,16 @@ def train_pfn(
     mlflow_log: bool = False,
     run_name: str | None = None,
     metric_every: int = 10,
+    eval_every: int | None = None,
+    log_models: bool = True,
 ) -> dict[str, list[float]]:
     """prior-fitting 루프. loss history를 반환한다.
 
-    `mlflow_log=True`면 config를 params로, step별 train NLL을 metric으로 MLflow에 기록한다
-    (`metric_every` 스텝마다). 이미 활성 run이 있으면 거기에, 없으면 새 run을 열어 기록한다
-    (Databricks에선 노트북 experiment로 자동 연결된다).
+    `mlflow_log=True`면 config를 params로, step별 train NLL을 metric으로 기록한다
+    (`metric_every` 스텝마다). 또 `eval_every`(기본 `steps//10`) 스텝마다 held-out prior
+    batch의 검증 NLL을 재어 `val_nll`로 기록하고, 개선될 때의 가중치를 best로 추적한다.
+    끝나면 `log_models=True`일 때 best/final 모델을 MLflow(mlflow.pytorch)로 로깅한다.
+    이미 활성 run이 있으면 거기에, 없으면 새 run을 연다(Databricks는 노트북 experiment로 연결).
     """
     device = torch.device(device)
     model.to(device)
@@ -161,6 +190,8 @@ def train_pfn(
 
     mlf = None
     started_run = False
+    val_batch = None
+    best_val, best_state, best_step = math.inf, None, -1
     if mlflow_log:
         import mlflow as mlf
 
@@ -170,6 +201,20 @@ def train_pfn(
         mlf.log_params(asdict(config))
         mlf.log_param("device", str(device))
         mlf.log_param("n_parameters", sum(p.numel() for p in model.parameters()))
+        if eval_every is None:
+            eval_every = max(1, config.steps // 10)
+        # held-out 검증 batch — prior에서 새로 뽑으므로 학습이 이 batch를 다시 볼 확률은 0.
+        xv, yv = prior_sampler.sample_batch(config.batch_size, config.seq_len, device)
+        sep_val = (config.min_context + config.max_context) // 2
+        val_batch = (xv[:, :sep_val], yv[:, :sep_val], xv[:, sep_val:], yv[:, sep_val:])
+
+    def _val_nll() -> float:
+        model.eval()
+        with torch.no_grad():
+            xc, yc, xq, yq = val_batch
+            vl = criterion(model(xc, yc, xq), yq).mean().item()
+        model.train()
+        return vl
 
     losses: list[float] = []
     step_iter = range(config.steps)
@@ -202,16 +247,28 @@ def train_pfn(
             if mlf is not None and step % metric_every == 0:
                 mlf.log_metric("train_nll", loss.item(), step=step)
                 mlf.log_metric("lr", scheduler.get_last_lr()[0], step=step)
+            if mlf is not None and step % eval_every == 0:
+                vl = _val_nll()
+                mlf.log_metric("val_nll", vl, step=step)
+                if vl < best_val:
+                    best_val, best_state, best_step = vl, copy.deepcopy(model.state_dict()), step
 
         if mlf is not None:
-            mlf.log_metric("train_nll", losses[-1], step=config.steps - 1)
+            last = config.steps - 1
+            mlf.log_metric("train_nll", losses[-1], step=last)
             tail = losses[-50:]
             mlf.log_metric("final_train_nll", sum(tail) / len(tail))
+            vl = _val_nll()
+            mlf.log_metric("val_nll", vl, step=last)
+            if vl < best_val:
+                best_val, best_state, best_step = vl, copy.deepcopy(model.state_dict()), last
+            if log_models:
+                _log_best_and_final_models(mlf, model, best_state, best_val, best_step, config)
     finally:
         if started_run:
             mlf.end_run()
 
-    return {"losses": losses}
+    return {"losses": losses, "best_val_nll": best_val, "best_step": best_step}
 
 
 @torch.no_grad()
@@ -253,3 +310,20 @@ def load_checkpoint(path: str, map_location: str | torch.device = "cpu") -> dict
     model.to(map_location)
     criterion = build_criterion(config).to(map_location)
     return {"model": model, "config": config, "criterion": criterion}
+
+
+def load_logged_model(model_uri: str, map_location: str | torch.device = "cpu") -> dict:
+    """MLflow(mlflow.pytorch)에 로깅된 PFN 모델을 불러오고, metadata의 config로 criterion을
+
+    재구성해 {"model", "config", "criterion"}를 반환한다. 추론에 그대로 pfn_predict에 쓴다."""
+    import mlflow.pytorch
+    from mlflow.models import Model
+
+    model = mlflow.pytorch.load_model(model_uri, map_location=map_location)
+    meta = dict((Model.load(model_uri).metadata or {}).get("pfn_config", {}))
+    for key in ("bucket_range", "x_range"):
+        if meta.get(key) is not None:
+            meta[key] = tuple(meta[key])
+    config = PFNConfig(**meta) if meta else None
+    criterion = build_criterion(config).to(map_location) if config is not None else None
+    return {"model": model.to(map_location).eval(), "config": config, "criterion": criterion}
