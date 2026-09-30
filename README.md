@@ -102,7 +102,7 @@ Serverless notebook task에 GPU를 붙이려면 task에 `compute.hardware_accele
 
 ## 참고 자료
 
-- Müller et al., *Transformers Can Do Bayesian Inference*, ICLR 2022 — PFN 원 논문
+- Müller et al., *[Transformers Can Do Bayesian Inference](https://arxiv.org/pdf/2112.10510)*, ICLR 2022 — PFN 원 논문
 - Hollmann et al., *TabPFN: A Transformer That Solves Small Tabular Classification Problems in a Second*, ICLR 2023
 - Hollmann et al., *Accurate predictions on small data with a tabular foundation model*, Nature 2025 — TabPFN v2
 - [automl/PFNs](https://github.com/automl/PFNs) — 공식 PFN 구현

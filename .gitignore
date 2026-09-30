@@ -19,6 +19,9 @@ wheels/
 # Training artifacts (체크포인트·로그는 커밋하지 않는다)
 checkpoints/
 runs/
+mlruns/
+mlartifacts/
+mlflow.db
 *.pt
 *.ckpt
 
