@@ -55,6 +55,19 @@ uv run ruff format .    # 포맷
 uv run nbstripout --install --attributes .gitattributes
 ```
 
+## Databricks Serverless GPU에서 실행하기
+
+PFN 학습처럼 무거운 연산은 Databricks Serverless GPU에서 돌립니다. 로컬(Apple Silicon)은 코드 작성과
+작은 실험용입니다. 같은 노트북을 두 곳에서 그대로 실행할 수 있게 맞춰 두었습니다.
+
+1. Workspace에서 이 저장소를 **Git folder**로 clone합니다.
+2. 노트북을 열고 오른쪽 **Environment** 패널에서 accelerator(A10 또는 H100)와 환경 버전을 고릅니다.
+   `pyproject.toml`의 의존성 하한은 Serverless GPU 환경 v6(Python 3.12, torch 2.11 + CUDA 13.0)에 맞춰져 있습니다.
+3. `notebooks/00_setup_check.ipynb`을 실행해 `device: cuda`와 GPU 이름이 나오는지 확인합니다.
+
+각 노트북의 첫 셀은 `pfn_cookbook`이 설치되어 있지 않으면 저장소의 `src/`를 import 경로에 추가합니다.
+그래서 Databricks에서 따로 패키지를 설치하지 않아도 공용 코드를 쓸 수 있습니다.
+
 ## 참고 자료
 
 - Müller et al., *Transformers Can Do Bayesian Inference*, ICLR 2022 — PFN 원 논문

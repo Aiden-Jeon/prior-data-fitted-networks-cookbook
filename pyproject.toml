@@ -7,13 +7,15 @@ authors = [
     { name = "Aiden-Jeon", email = "aiden.jongseob@gmail.com" }
 ]
 requires-python = ">=3.12"
+# 하한은 Databricks Serverless GPU 환경 v6에 맞춘다.
+# torch는 그 환경에서 테스트된 2.11(CUDA 13.0 빌드)로 고정해 로컬과 버전을 맞춘다.
 dependencies = [
-    "matplotlib>=3.11.2",
-    "numpy>=2.5.3",
-    "scikit-learn>=1.9.1",
-    "scipy>=1.18.1",
-    "torch>=2.14.0",
-    "tqdm>=4.70.1",
+    "matplotlib>=3.10",
+    "numpy>=2.3",
+    "scikit-learn>=1.7",
+    "scipy>=1.16",
+    "torch>=2.11,<2.12",
+    "tqdm>=4.67",
 ]
 
 [build-system]
