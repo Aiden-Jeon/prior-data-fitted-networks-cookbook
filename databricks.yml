@@ -18,24 +18,6 @@ resources:
           compute:
             hardware_accelerator: GPU_1xA10
 
-    train_pfn_a10:
-      name: "[pfn-cookbook] 05 train PFN (A10)"
-      environments:
-        - environment_key: gpu
-          spec:
-            base_environment: workspace-base-environments/databricks_ai_v6
-      tasks:
-        - task_key: train_pfn
-          environment_key: gpu
-          notebook_task:
-            notebook_path: ./notebooks/05_pfn_train_a10.ipynb
-            # 실행 확인은 짧게(config_name=large, steps=500), 재현은 steps를 늘리거나 config_name=paper
-            base_parameters:
-              config_name: "large"
-              steps: "500"
-          compute:
-            hardware_accelerator: GPU_1xA10
-
 targets:
   dev:
     mode: development

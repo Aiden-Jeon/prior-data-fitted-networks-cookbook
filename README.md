@@ -25,8 +25,10 @@ posterior predictive distribution(PPD)을 근사하는 모델입니다. TabPFN�
 ```
 .
 ├── notebooks/            # 챕터별 노트북 (00_..., 01_..., ...)
-├── src/pfn_cookbook/     # 노트북에서 재사용하는 코드 (prior, 모델, 학습 루프)
-├── tests/                # src 코드 테스트
+├── src/pfn_cookbook/     # 노트북에서 재사용하는 코드 (prior, 모델, 학습 루프, 검증)
+├── scripts/              # GPU에서 돌리는 실행 스크립트 (학습, 환경 점검)
+├── air/                  # AI Runtime CLI workload 설정
+├── tests/                # src·scripts 테스트
 └── pyproject.toml
 ```
 
@@ -70,11 +72,32 @@ databricks current-user me --profile e2-demo-field-eng
 환경은 워크스페이스 base environment **AI v6**(`databricks_ai_v6`: Python 3.12, torch 2.11.0+cu130)를 씁니다.
 `pyproject.toml`의 torch 고정 범위와 의존성 하한도 이 환경에 맞춰져 있습니다.
 
-실행 방법은 두 가지입니다.
+실행 방법은 세 가지입니다.
 
-### 1. Asset Bundle: 로컬 코드를 올려 job으로 실행
+### 1. AI Runtime CLI(`databricks air`): 학습 스크립트 실행
 
-실험·학습처럼 끝까지 돌려야 하는 작업에 씁니다. job 정의는 `databricks.yml`에 있습니다.
+PFN 학습처럼 끝까지 돌려야 하는 작업에 씁니다. [AI Runtime CLI](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/quickstart)가 로컬의 `src/`·`scripts/`를 스냅샷으로 올려 Serverless GPU에서 `scripts/*.py`를 실행합니다. 커밋하지 않은 변경도 그대로 올라갑니다. workload 설정은 `air/`에 있습니다. CLI v1.19 이상이 필요합니다(`brew upgrade databricks`).
+
+```bash
+databricks air run -f air/setup_check.yaml --watch -p e2-demo-field-eng   # A10에서 환경 점검
+databricks air run -f air/train_pfn.yaml --watch -p e2-demo-field-eng     # 학습 (large, 500 step)
+```
+
+규모는 yaml을 고치지 않고 `--override`로 바꿉니다. 논문 재현(A10 기준 2~3시간)은 다음과 같습니다.
+
+```bash
+databricks air run -f air/train_pfn.yaml --watch -p e2-demo-field-eng \
+  --override env_variables.PFN_CONFIG_NAME=paper --override env_variables.PFN_STEPS=10000 \
+  --override mlflow_run_name=paper-10000steps --override timeout_minutes=240
+```
+
+제출하면 Job Run ID가 나옵니다. `databricks air get <id>`로 상태와 Job·MLflow run 링크를, `databricks air logs <id>`로 로그를 봅니다. MLflow run(experiment `/Workspace/Users/jongseob.jeon@databricks.com/pfn-cookbook/pfn-gp-reproduction`)에는 config, `train_nll`/`val_nll`, analytic GP 대비 지표(`rmse_mean`, `nll_gap` 등), loss curve·오버레이 그림, best/final 모델이 남습니다. 모델은 `load_logged_model("runs:/<run_id>/best_model")`로 불러옵니다.
+
+같은 스크립트를 로컬에서도 돌릴 수 있습니다: `uv run python scripts/train_pfn.py --config-name small --steps 50`
+
+### 2. Asset Bundle: 노트북을 job으로 실행
+
+노트북을 그대로 job으로 돌릴 때 씁니다. job 정의는 `databricks.yml`에 있습니다.
 
 ```bash
 databricks bundle deploy                 # 로컬 코드를 워크스페이스에 업로드 + job 생성/갱신
@@ -84,7 +107,7 @@ databricks bundle run setup_check        # 00 노트북을 A10 GPU에서 실행
 Serverless notebook task에 GPU를 붙이려면 task에 `compute.hardware_accelerator`(`GPU_1xA10` 또는
 `GPU_8xH100`)와 `environment_key`를 함께 지정해야 합니다.
 
-### 2. Git folder: 워크스페이스에서 노트북을 직접 실행
+### 3. Git folder: 워크스페이스에서 노트북을 직접 실행
 
 읽으면서 셀 단위로 실험할 때 씁니다. Git folder 경로는
 `/Workspace/Users/jongseob.jeon@databricks.com/prior-data-fitted-networks-cookbook`입니다.
