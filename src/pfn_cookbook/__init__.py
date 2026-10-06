@@ -8,6 +8,7 @@ from pfn_cookbook.bar_distribution import (
     FullSupportBarDistribution,
     get_bucket_borders,
 )
+from pfn_cookbook.evaluate import evaluate_against_gp
 from pfn_cookbook.gp_prior import GPPriorSampler, analytic_gp_posterior, rbf_kernel
 from pfn_cookbook.model import PFNTransformer, build_attention_mask
 from pfn_cookbook.train import (
@@ -43,4 +44,5 @@ __all__ = [
     "save_checkpoint",
     "load_checkpoint",
     "load_logged_model",
+    "evaluate_against_gp",
 ]
